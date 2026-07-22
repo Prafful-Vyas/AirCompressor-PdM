@@ -1,5 +1,7 @@
 # Air Compressor Predictive Maintenance 🛠️
 
+📚 **Docs:** [README](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Concepts](docs/CONCEPTS.md)
+
 ## 📌 Project Overview
 
 Industrial air compressors are the "lungs" of manufacturing plants. Unplanned downtime can cost thousands of dollars per hour. This project implements an **end-to-end MLOps pipeline** to predict multi-component failures (Bearings, Radiators, Pumps) using real-time sensor data (Vibration, Temperature, Pressure).
