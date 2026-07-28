@@ -1,5 +1,7 @@
 # Air Compressor Predictive Maintenance 🛠️
 
+[![CI](https://github.com/Prafful-Vyas/Air-Compressor-predictive-maintenance-using-ML/actions/workflows/ci.yml/badge.svg)](https://github.com/Prafful-Vyas/Air-Compressor-predictive-maintenance-using-ML/actions/workflows/ci.yml)
+
 📚 **Docs:** [README](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Concepts](docs/CONCEPTS.md)
 
 ## 📌 Project Overview
@@ -30,18 +32,24 @@ The system is designed as a modular pipeline to ensure scalability and maintaina
 ## 📁 Repository Structure
 
 ```text
-├── api/                # FastAPI implementation
-├── data/raw/           # Sensor CSV data (not tracked in Git)
-├── models/             # Serialized model artifacts (.pkl)
+├── api/
+│   └── main.py         # FastAPI implementation (/health, /predict)
+├── data/raw/           # Sensor CSV data
 ├── src/                # Core Logic
+│   ├── config.py       # Shared column/experiment constants
 │   ├── ingestion.py    # Data loading & logging
 │   ├── preprocessing.py# Sklearn Transformation Pipelines
 │   ├── features.py     # Rolling window & lag engineering
-│   └── train.py        # MLflow training logic with TimeSeriesSplit
+│   ├── train.py        # MLflow training logic with TimeSeriesSplit
+│   └── predict.py      # Loads latest MLflow models & serves predictions
 ├── Dockerfile          # Containerization for production
-└── requirements.txt    # Project dependencies
+└── pyproject.toml / uv.lock  # Project dependencies (uv)
 
 ```
+
+Model artifacts aren't stored as local `.pkl` files — each training run logs a
+self-contained preprocessing+model pipeline to MLflow, and `src/predict.py`
+loads the latest run per target at serving time.
 
 ---
 
@@ -49,7 +57,7 @@ The system is designed as a modular pipeline to ensure scalability and maintaina
 
 ### 1. Prerequisites
 
-* Python 3.10+
+* Python 3.13+
 * Docker (Optional for containerization)
 
 ### 2. Installation
@@ -66,7 +74,7 @@ uv sync
 Run the training pipeline to log metrics to MLflow:
 
 ```bash
-python src/train.py
+python -m src.train
 mlflow ui  # View results at http://localhost:5000
 
 ```
@@ -80,14 +88,45 @@ uvicorn api.main:app --reload
 
 Navigate to `http://localhost:8000/docs` to test the interactive Swagger API.
 
+### 5. Running via Docker
+
+The container serves the API only; it loads trained models from an MLflow
+tracking store at startup, so mount the local `mlruns/` directory produced
+by step 3 (or point `MLFLOW_TRACKING_URI` at a remote tracking server):
+
+```bash
+docker build -t air-compressor-api .
+docker run -p 8000:8000 -v "$(pwd)/mlruns:/app/mlruns" air-compressor-api
+
+```
+
+### 6. Testing & Code Quality
+
+```bash
+uv run pytest              # unit + integration tests
+uv run ruff check .        # lint
+uv run ruff format .       # auto-format
+
+```
+
+`pre-commit install` will run lint/format automatically on each commit
+(config in `.pre-commit-config.yaml`). The same checks run in CI on every
+push and pull request against `main` (`.github/workflows/ci.yml`).
+
 ---
 
 ## 📊 Performance Metrics
 
 Instead of simple accuracy, this project prioritizes **F1-Score** and **Precision-Recall** due to the class imbalance inherent in machinery failure data.
 
-* **Bearing Failure F1-Score:** 0.XX (Update with your actual results)
-* **Validation Strategy:** 5-Fold TimeSeriesSplit.
+| Target      | Mean CV F1 (5-fold) | Holdout F1 |
+|-------------|----------------------|------------|
+| Bearings    | 0.80                 | 0.63       |
+| Water Pump  | 0.84                 | 0.84       |
+| Radiator    | 0.83                 | 0.88       |
+| Exhaust Valve | 0.67               | 0.79       |
+
+* **Validation Strategy:** 5-Fold `TimeSeriesSplit` for a robustness estimate, plus a chronological 80/20 holdout as the reported test metric. Numbers above are from a single run and will shift as the training data grows — rerun `python -m src.train` and update this table periodically rather than treating it as fixed.
 
 ---
 

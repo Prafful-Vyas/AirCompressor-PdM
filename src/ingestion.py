@@ -1,6 +1,5 @@
 import logging
 import os
-from typing import Optional
 
 import pandas as pd
 
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 class DataIngestor:
     def __init__(self, raw_data_path: str):
         self.raw_data_path = raw_data_path
-        self.df: Optional[pd.DataFrame] = None
+        self.df: pd.DataFrame | None = None
 
     def load_data(self) -> pd.DataFrame:
         """Loads the air compressor CSV file from the data/raw directory."""

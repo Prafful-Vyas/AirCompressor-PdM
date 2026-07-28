@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 
 
 class FeatureEngineer:
-    def __init__(self, window_sizes: list = [5, 10, 20]):
-        self.window_sizes = window_sizes
+    def __init__(self, window_sizes: list | None = None):
+        self.window_sizes = window_sizes if window_sizes is not None else [5, 10, 20]
 
     def create_rolling_features(
         self, df: pd.DataFrame, sensor_cols: list
@@ -18,38 +18,55 @@ class FeatureEngineer:
         Creates rolling mean and std dev for sensor columns.
         Essential for capturing degradation trends in machinery.
         """
+        missing = [c for c in sensor_cols if c not in df.columns]
+        if missing:
+            raise ValueError(f"Sensor columns not found in dataframe: {missing}")
+
         df_feat = df.copy()
 
         for col in sensor_cols:
             for window in self.window_sizes:
-                # Rolling Mean: Captures shifts in the baseline
+                # min_periods=1 keeps the window causal: each row only ever
+                # aggregates its own past/current values, never future ones.
                 df_feat[f"{col}_roll_mean_{window}"] = (
-                    df[col].rolling(window=window).mean()
+                    df[col].rolling(window=window, min_periods=1).mean()
                 )
 
                 # Rolling Std: Captures increased 'shakiness' or instability
                 df_feat[f"{col}_roll_std_{window}"] = (
-                    df[col].rolling(window=window).std()
+                    df[col].rolling(window=window, min_periods=1).std()
                 )
 
-        # Fill the initial NaNs created by the rolling window
-        df_feat = df_feat.bfill()
+        # std of a single observation is undefined (NaN); treat "no variability
+        # observed yet" as 0 rather than back-filling from future rows.
+        std_cols = [c for c in df_feat.columns if "_roll_std_" in c]
+        df_feat[std_cols] = df_feat[std_cols].fillna(0)
+
         logger.info(
             f"Generated {len(df_feat.columns) - len(df.columns)} new rolling features."
         )
         return df_feat
 
     def create_lag_features(
-        self, df: pd.DataFrame, sensor_cols: list, lags: list = [1, 2]
+        self, df: pd.DataFrame, sensor_cols: list, lags: list | None = None
     ) -> pd.DataFrame:
         """
         Captures the delta between current and previous states.
         """
+        lags = lags if lags is not None else [1, 2]
+        missing = [c for c in sensor_cols if c not in df.columns]
+        if missing:
+            raise ValueError(f"Sensor columns not found in dataframe: {missing}")
+
+        df_feat = df.copy()
         for col in sensor_cols:
             for lag in lags:
-                df[f"{col}_lag_{lag}"] = df[col].shift(lag)
+                df_feat[f"{col}_lag_{lag}"] = df[col].shift(lag)
 
-        return df.bfill()
+        # Leading NaNs from shift() are left for the preprocessing pipeline's
+        # imputer (fit on train data only) to handle, instead of back-filling
+        # them with future values.
+        return df_feat
 
 
 if __name__ == "__main__":

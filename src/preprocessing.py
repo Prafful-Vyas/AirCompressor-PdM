@@ -21,9 +21,11 @@ class SensorSanityChecker(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X_copy = X.copy()
-        # Example: Pressure can't be negative. Replace with 0 or NaN.
-        if "pressure" in X_copy.columns:
-            X_copy.loc[X_copy["pressure"] < 0, "pressure"] = 0
+        # Pressure can't be negative. Matches any column with "press" in its
+        # name (e.g. outlet_pressure_bar, wpump_outlet_press).
+        pressure_cols = [c for c in X_copy.columns if "press" in c.lower()]
+        for col in pressure_cols:
+            X_copy.loc[X_copy[col] < 0, col] = 0
         return X_copy
 
 

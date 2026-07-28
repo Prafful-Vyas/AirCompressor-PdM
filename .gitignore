@@ -3,3 +3,13 @@ pred_main_envmlflow.db
 
 # MLflow data
 mlflow.db
+mlruns/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# model artifacts
+*.pkl
+*.joblib
