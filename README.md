@@ -1,7 +1,5 @@
 # Air Compressor Predictive Maintenance 🛠️
 
-[![CI](https://github.com/Prafful-Vyas/Air-Compressor-predictive-maintenance-using-ML/actions/workflows/ci.yml/badge.svg)](https://github.com/Prafful-Vyas/Air-Compressor-predictive-maintenance-using-ML/actions/workflows/ci.yml)
-
 📚 **Docs:** [README](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Concepts](docs/CONCEPTS.md)
 
 ## 📌 Project Overview

@@ -109,23 +109,27 @@ huge sensor spike can't drag it away from the bulk of the data.
 ### Feature Scaling — `RobustScaler` vs `StandardScaler`
 Both rescale numeric features so no single sensor (e.g., `motor_power` in the hundreds)
 dominates a model just because of its raw magnitude compared to one like `torque`.
-- **StandardScaler** centers on the *mean* and scales by *standard deviation* (the
-  **z-score**):
-  $$
-  z = \frac{x - \mu}{\sigma}, \qquad \mu = \frac{1}{n}\sum_i x_i, \qquad \sigma = \sqrt{\frac{1}{n}\sum_i (x_i-\mu)^2}
-  $$
-  This assumes roughly normal data, and is sensitive to outliers because both $\mu$ and
-  $\sigma$ are themselves skewed by outliers.
-- **RobustScaler** centers on the *median* and scales by the **interquartile range (IQR)**:
-  $$
-  x' = \frac{x - \text{median}(x)}{\text{IQR}(x)}, \qquad \text{IQR}(x) = Q_3 - Q_1
-  $$
-  where $Q_1$/$Q_3$ are the 25th/75th percentiles. Since $Q_1$, $Q_3$, and the median all
-  come from the middle 50% of the data, a handful of extreme sensor spikes barely move
-  them — far less affected than $\mu$/$\sigma$. This is why the pipeline uses
-  `RobustScaler` for failing-machine sensor data (`preprocessing.py`), while the
-  exploratory notebooks use the simpler `StandardScaler` for PCA input (PCA's math
-  specifically requires mean-centered, unit-variance input — see §9).
+**StandardScaler** centers on the *mean* and scales by *standard deviation* (the **z-score**):
+
+```math
+z = \frac{x - \mu}{\sigma}, \qquad \mu = \frac{1}{n}\sum_i x_i, \qquad \sigma = \sqrt{\frac{1}{n}\sum_i (x_i-\mu)^2}
+```
+
+This assumes roughly normal data, and is sensitive to outliers because both $\mu$ and
+$\sigma$ are themselves skewed by outliers.
+
+**RobustScaler** centers on the *median* and scales by the **interquartile range (IQR)**:
+
+```math
+x' = \frac{x - \text{median}(x)}{\text{IQR}(x)}, \qquad \text{IQR}(x) = Q_3 - Q_1
+```
+
+where $Q_1$/$Q_3$ are the 25th/75th percentiles. Since $Q_1$, $Q_3$, and the median all
+come from the middle 50% of the data, a handful of extreme sensor spikes barely move
+them — far less affected than $\mu$/$\sigma$. This is why the pipeline uses
+`RobustScaler` for failing-machine sensor data (`preprocessing.py`), while the
+exploratory notebooks use the simpler `StandardScaler` for PCA input (PCA's math
+specifically requires mean-centered, unit-variance input — see §9).
 
 ---
 
@@ -343,25 +347,31 @@ at — that requires moving to the **frequency domain**, which is what FFT is fo
   (what the sensor literally reads at each instant). A frequency-domain signal is
   "energy vs. frequency" (how much the signal oscillates at each rate). FFT converts one
   into the other.
-- **Computing the FFT** — `np.fft.fft(signal)` computes the **Discrete Fourier
-  Transform** of a length-$N$ window $x_0, \dots, x_{N-1}$:
-  $$
-  X_k = \sum_{n=0}^{N-1} x_n \, e^{-i 2\pi k n / N}, \qquad k = 0, 1, \dots, N-1
-  $$
-  Each complex coefficient $X_k$ represents how strongly frequency $k$ is present in the
-  window. `np.abs(X_k)` converts it to a magnitude, giving the **amplitude spectrum**
-  $|X_k|$.
+**Computing the FFT** — `np.fft.fft(signal)` computes the **Discrete Fourier
+Transform** of a length-$N$ window $x_0, \dots, x_{N-1}$:
+
+```math
+X_k = \sum_{n=0}^{N-1} x_n \, e^{-i 2\pi k n / N}, \qquad k = 0, 1, \dots, N-1
+```
+
+Each complex coefficient $X_k$ represents how strongly frequency $k$ is present in the
+window. `np.abs(X_k)` converts it to a magnitude, giving the **amplitude spectrum**
+$|X_k|$.
+
 - **Symmetry / using half the spectrum** — for a real-valued input signal (as all sensor
   readings are), the FFT output is conjugate-symmetric ($X_{N-k} = \overline{X_k}$, so
   $|X_{N-k}| = |X_k|$), so the notebook keeps only the first half
   (`fft_vals[:len(fft_vals)//2]`) — the second half is redundant.
-- **High-frequency energy feature** — `np.mean(fft_vals[int(len(fft_vals)*0.5):])`
-  averages the amplitude across the *upper* half of the frequency spectrum:
-  $$
-  E_{\text{high}} = \frac{1}{N/2 - N/4}\sum_{k=N/4}^{N/2-1} |X_k|
-  $$
-  The hypothesis: damaged bearings push more vibration energy into higher frequencies
-  than smooth, healthy rotation.
+**High-frequency energy feature** — `np.mean(fft_vals[int(len(fft_vals)*0.5):])`
+averages the amplitude across the *upper* half of the frequency spectrum:
+
+```math
+E_{\text{high}} = \frac{1}{N/2 - N/4}\sum_{k=N/4}^{N/2-1} |X_k|
+```
+
+The hypothesis: damaged bearings push more vibration energy into higher frequencies
+than smooth, healthy rotation.
+
 - **Lesson learned — global FFT is wrong; use sliding windows.** Computing FFT once over
   the *entire* signal produces one single number reused for every row (as the notebook
   demonstrates — the feature comes out identical for both classes and is useless).
@@ -373,21 +383,27 @@ at — that requires moving to the **frequency domain**, which is what FFT is fo
   structurally identical to the rolling-window pattern already in
   `src/features.py::create_rolling_features` (§5) — same sliding-window idea, just with
   an FFT instead of `.mean()`/`.std()` as the aggregation.
-- **Spectral spread feature** — `np.std(fft_vals)` per window measures how *dispersed*
-  the vibration energy is across frequencies (a wide, noisy spectrum vs. one concentrated
-  at a single peak):
-  $$
-  \sigma_{\text{spread}} = \sqrt{\frac{1}{N/2}\sum_{k=0}^{N/2-1}\left(|X_k| - \overline{|X|}\right)^2}
-  $$
-  The notebook finds this rises slightly before failure, indicating the vibration
-  spectrum becomes less stable as a bearing degrades.
-- **Frequency bins (`np.fft.fftfreq`)** — converts raw FFT bin *index* $k$ into an actual
-  frequency in Hz, given an assumed sampling rate $f_s$ and window length $N$:
-  $$
-  f_k = \frac{k \cdot f_s}{N}, \qquad k = 0, 1, \dots, \tfrac{N}{2}-1
-  $$
-  used only for plotting a human-readable "amplitude vs. frequency (Hz)" chart comparing
-  normal vs. soon-to-fail vibration.
+**Spectral spread feature** — `np.std(fft_vals)` per window measures how *dispersed*
+the vibration energy is across frequencies (a wide, noisy spectrum vs. one concentrated
+at a single peak):
+
+```math
+\sigma_{\text{spread}} = \sqrt{\frac{1}{N/2}\sum_{k=0}^{N/2-1}\left(|X_k| - \overline{|X|}\right)^2}
+```
+
+The notebook finds this rises slightly before failure, indicating the vibration
+spectrum becomes less stable as a bearing degrades.
+
+**Frequency bins (`np.fft.fftfreq`)** — converts raw FFT bin *index* $k$ into an actual
+frequency in Hz, given an assumed sampling rate $f_s$ and window length $N$:
+
+```math
+f_k = \frac{k \cdot f_s}{N}, \qquad k = 0, 1, \dots, \tfrac{N}{2}-1
+```
+
+used only for plotting a human-readable "amplitude vs. frequency (Hz)" chart comparing
+normal vs. soon-to-fail vibration.
+
 - **Interpreting small feature gains** — adding the spectral-spread FFT feature to the
   logistic regression model improved accuracy only marginally (≈0.73 → ≈0.74) while
   recall on failures stayed ≈0.89. The notebook's explicit takeaway: a **small, stable**
@@ -431,31 +447,37 @@ variance calculation over one measured in single digits (like `torque`).
 ### Principal Component Analysis (PCA)
 A dimensionality-reduction technique that finds new axes (**principal components**) which
 are linear combinations of the original features, ordered by how much variance in the
-data they explain. The notebook does this two ways:
-- **Manually**, via the covariance matrix and its **eigenvalues/eigenvectors**. For
-  standardized data $X$ (rows = samples, columns = features), the covariance matrix is:
-  $$
-  \Sigma = \frac{1}{n-1} X^\top X
-  $$
-  (`np.cov`). Its eigenvectors $v_i$ and eigenvalues $\lambda_i$ satisfy:
-  $$
-  \Sigma v_i = \lambda_i v_i
-  $$
-  (`np.linalg.eig`) — each eigenvector $v_i$ gives the *direction* of a new axis
-  (principal component), and its eigenvalue $\lambda_i$ gives how much variance the data
-  has along that direction. Sorting eigen-pairs by $\lambda_i$ descending and keeping the
-  top 2 gives the 2 most informative combined features; a sample $x$ is projected onto
-  component $i$ by $x \cdot v_i$ (a dot product).
-- **Via `sklearn.decomposition.PCA`** — the standard, production-ready equivalent of the
-  same math.
+data they explain. The notebook does this two ways.
+
+**Manually**, via the covariance matrix and its **eigenvalues/eigenvectors**. For
+standardized data $X$ (rows = samples, columns = features), the covariance matrix is:
+
+```math
+\Sigma = \frac{1}{n-1} X^\top X
+```
+
+(`np.cov`). Its eigenvectors $v_i$ and eigenvalues $\lambda_i$ satisfy:
+
+```math
+\Sigma v_i = \lambda_i v_i
+```
+
+(`np.linalg.eig`) — each eigenvector $v_i$ gives the *direction* of a new axis
+(principal component), and its eigenvalue $\lambda_i$ gives how much variance the data
+has along that direction. Sorting eigen-pairs by $\lambda_i$ descending and keeping the
+top 2 gives the 2 most informative combined features; a sample $x$ is projected onto
+component $i$ by $x \cdot v_i$ (a dot product).
+
+**Via `sklearn.decomposition.PCA`** — the standard, production-ready equivalent of the
+same math.
 
 **Explained variance ratio** (`var_exp`, `cum_var_exp`) quantifies how much of the total
 information is preserved by keeping only the top $m$ components out of $p$ total:
-$$
+```math
 \text{explained\_variance\_ratio}_i = \frac{\lambda_i}{\sum_{j=1}^{p}\lambda_j},
 \qquad
 \text{cumulative}_m = \sum_{i=1}^{m}\frac{\lambda_i}{\sum_{j=1}^{p}\lambda_j}
-$$
+```
 the notebook notes the first two components already explain ~80% of the variance,
 meaning most sensor readings move together (are correlated) rather than varying
 independently.
@@ -466,20 +488,24 @@ abstract "PC1, PC2..." axis back in terms of real sensors (e.g., PC1 is dominate
 `gaccy`/`gaccz`, i.e., vibration).
 
 ### Handling Class Imbalance — SMOTE-Tomek
-A combined resampling strategy:
-- **SMOTE** (Synthetic Minority Oversampling Technique) creates new *synthetic* examples
-  of the minority (failure) class by interpolating between existing minority samples,
-  rather than just duplicating them. For a minority sample $x_i$ and one of its $k$
-  nearest minority neighbors $x_{zi}$, a synthetic point is generated as:
-  $$
-  x_{\text{new}} = x_i + \lambda \cdot (x_{zi} - x_i), \qquad \lambda \sim \text{Uniform}(0,1)
-  $$
-  i.e. a random point on the line segment between the two real minority samples.
-- **Tomek Links** then removes borderline/ambiguous pairs of opposite-class samples that
-  sit right next to each other — formally, $(x_i, x_j)$ from different classes form a
-  Tomek link if no other sample $x_k$ satisfies $d(x_i,x_k) < d(x_i,x_j)$ or
-  $d(x_j,x_k) < d(x_i,x_j)$ (neither is closer to any third point than they are to each
-  other) — cleaning up the decision boundary.
+A combined resampling strategy.
+
+**SMOTE** (Synthetic Minority Oversampling Technique) creates new *synthetic* examples
+of the minority (failure) class by interpolating between existing minority samples,
+rather than just duplicating them. For a minority sample $x_i$ and one of its $k$
+nearest minority neighbors $x_{zi}$, a synthetic point is generated as:
+
+```math
+x_{\text{new}} = x_i + \lambda \cdot (x_{zi} - x_i), \qquad \lambda \sim \text{Uniform}(0,1)
+```
+
+i.e. a random point on the line segment between the two real minority samples.
+
+**Tomek Links** then removes borderline/ambiguous pairs of opposite-class samples that
+sit right next to each other — formally, $(x_i, x_j)$ from different classes form a
+Tomek link if no other sample $x_k$ satisfies $d(x_i,x_k) < d(x_i,x_j)$ or
+$d(x_j,x_k) < d(x_i,x_j)$ (neither is closer to any third point than they are to each
+other) — cleaning up the decision boundary.
 
 Together (`SMOTETomek`), this both grows the minority class and sharpens the boundary
 between classes, aiming for a better-trained classifier on imbalanced data.
@@ -488,29 +514,37 @@ between classes, aiming for a better-trained classifier on imbalanced data.
 A small feed-forward network built from scratch to compare against classical models:
 - `nn.Linear` layers compute an affine transform of the input: $z = Wx + b$, a
   fully-connected weight matrix $W$ plus bias $b$.
-- `Sigmoid` (hidden layer) and `Softmax` (output layer) are **activation functions**:
-  $$
-  \sigma(z) = \frac{1}{1+e^{-z}}, \qquad
-  \text{softmax}(z)_i = \frac{e^{z_i}}{\sum_{j} e^{z_j}}
-  $$
-  Sigmoid introduces non-linearity so the network can learn more than straight lines;
-  softmax turns the 2 output values into class probabilities that sum to 1.
-- `CrossEntropyLoss` measures how wrong the predicted class probabilities $\hat y$ are
-  versus the true one-hot label $y$ — the standard loss for classification:
-  $$
-  L = -\sum_{c} y_c \log(\hat y_c)
-  $$
-- `Adam` optimizer updates each weight $\theta$ using running averages of the gradient
-  ($m_t$, first moment) and its square ($v_t$, second moment), giving each parameter its
-  own adaptive step size:
-  $$
-  m_t = \beta_1 m_{t-1} + (1-\beta_1) g_t, \qquad
-  v_t = \beta_2 v_{t-1} + (1-\beta_2) g_t^2, \qquad
-  \theta_t = \theta_{t-1} - \eta \cdot \frac{\hat m_t}{\sqrt{\hat v_t} + \epsilon}
-  $$
-  where $g_t$ is the current gradient and $\hat m_t, \hat v_t$ are bias-corrected versions
-  of $m_t, v_t$ — this generally converges faster/more reliably than plain SGD
-  ($\theta_t = \theta_{t-1} - \eta g_t$).
+`Sigmoid` (hidden layer) and `Softmax` (output layer) are **activation functions**:
+
+```math
+\sigma(z) = \frac{1}{1+e^{-z}}, \qquad
+\text{softmax}(z)_i = \frac{e^{z_i}}{\sum_{j} e^{z_j}}
+```
+
+Sigmoid introduces non-linearity so the network can learn more than straight lines;
+softmax turns the 2 output values into class probabilities that sum to 1.
+
+`CrossEntropyLoss` measures how wrong the predicted class probabilities $\hat y$ are
+versus the true one-hot label $y$ — the standard loss for classification:
+
+```math
+L = -\sum_{c} y_c \log(\hat y_c)
+```
+
+`Adam` optimizer updates each weight $\theta$ using running averages of the gradient
+($m_t$, first moment) and its square ($v_t$, second moment), giving each parameter its
+own adaptive step size:
+
+```math
+m_t = \beta_1 m_{t-1} + (1-\beta_1) g_t, \qquad
+v_t = \beta_2 v_{t-1} + (1-\beta_2) g_t^2, \qquad
+\theta_t = \theta_{t-1} - \eta \cdot \frac{\hat m_t}{\sqrt{\hat v_t} + \epsilon}
+```
+
+where $g_t$ is the current gradient and $\hat m_t, \hat v_t$ are bias-corrected versions
+of $m_t, v_t$ — this generally converges faster/more reliably than plain SGD
+($\theta_t = \theta_{t-1} - \eta g_t$).
+
 - **Epoch** = one full pass over the training data; **batch** = a small chunk of data
   processed per weight update (`DataLoader`/`TensorDataset` handle batching/shuffling).
 - The **training loop** pattern (`forward → loss → loss.backward() → optimizer.step() →

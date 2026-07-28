@@ -115,9 +115,8 @@ speed and vibrates more at lower/irregular speeds.
 
 > **Note on correlation, used throughout this document:** for two sensors $X, Y$ measured
 > over $n$ rows, the Pearson correlation coefficient is
-> $$
-> r_{XY} = \frac{\sum_{i=1}^{n}(x_i-\bar x)(y_i-\bar y)}{\sqrt{\sum_{i=1}^{n}(x_i-\bar x)^2}\sqrt{\sum_{i=1}^{n}(y_i-\bar y)^2}}, \qquad r_{XY}\in[-1,1]
-> $$
+> $r_{XY} = \frac{\sum_{i=1}^{n}(x_i-\bar x)(y_i-\bar y)}{\sqrt{\sum_{i=1}^{n}(x_i-\bar x)^2}\sqrt{\sum_{i=1}^{n}(y_i-\bar y)^2}}$,
+> with $r_{XY}\in[-1,1]$.
 > $r=1$/$-1$ means a perfect increasing/decreasing linear relationship; $r=0$ means no
 > *linear* relationship (there could still be a non-linear one).
 
@@ -215,9 +214,9 @@ almost perfectly correlated: `gaccz` ↔ `haccz` (**r = 0.998**), `gaccx` ↔ `h
 exactly why `PdM-Approach.ipynb` collapses the 3 ground-axis readings into a single
 scalar via the **vector magnitude (Euclidean norm)**:
 
-$$
+```math
 \text{ground\_acc\_mag} = \|\vec{g}\| = \sqrt{\text{gaccx}^2 + \text{gaccy}^2 + \text{gaccz}^2}
-$$
+```
 
 (see [CONCEPTS.md §8](CONCEPTS.md)) — the head sensors add almost no independent
 information once the ground sensors are known, so using both sets directly would be
@@ -252,17 +251,20 @@ up as 4 separate binary columns rather than one categorical column. Practically:
   is a reasonable simplification, but each model is implicitly also learning "not one of
   the other 3 faults" as part of what "0" means.
 - The pairwise correlation between any two fault columns is exactly **‑0.25**, and this
-  is derivable rather than coincidental. For two mutually-exclusive binary indicators
-  $X, Y \in \{0,1\}$ each with marginal fault probability $p$ (here $p=0.2$):
-  mutual exclusivity means $X{=}1$ and $Y{=}1$ never happen together, so
-  $E[XY] = P(X{=}1, Y{=}1) = 0$. With $E[X]=E[Y]=p$ and
-  $\text{Var}(X)=\text{Var}(Y)=p(1-p)$ for a Bernoulli variable:
-  $$
-  r_{XY} = \frac{E[XY]-E[X]E[Y]}{\sqrt{\text{Var}(X)\text{Var}(Y)}} = \frac{0-p^2}{p(1-p)} = -\frac{p}{1-p}
-  $$
-  Plugging in $p=0.2$: $r_{XY} = -\frac{0.2}{0.8} = -0.25$ — matching the observed value
-  exactly, confirming the four fault columns are baked-in mutually exclusive by
-  construction, not just empirically uncorrelated.
+  is derivable rather than coincidental.
+
+For two mutually-exclusive binary indicators $X, Y \in \{0,1\}$ each with marginal fault
+probability $p$ (here $p=0.2$): mutual exclusivity means $X{=}1$ and $Y{=}1$ never happen
+together, so $E[XY] = P(X{=}1, Y{=}1) = 0$. With $E[X]=E[Y]=p$ and
+$\text{Var}(X)=\text{Var}(Y)=p(1-p)$ for a Bernoulli variable:
+
+```math
+r_{XY} = \frac{E[XY]-E[X]E[Y]}{\sqrt{\text{Var}(X)\text{Var}(Y)}} = \frac{0-p^2}{p(1-p)} = -\frac{p}{1-p}
+```
+
+Plugging in $p=0.2$: $r_{XY} = -\frac{0.2}{0.8} = -0.25$ — matching the observed value
+exactly, confirming the four fault columns are baked-in mutually exclusive by
+construction, not just empirically uncorrelated.
 
 ---
 
