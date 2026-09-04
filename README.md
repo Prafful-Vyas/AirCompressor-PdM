@@ -1,6 +1,6 @@
 # Air Compressor Predictive Maintenance 🛠️
 
-📚 **Docs:** [README](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Concepts](docs/CONCEPTS.md)
+📚 **Docs:** [README](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Concepts](docs/CONCEPTS.md) · [License](LICENSE) · [Security](SECURITY.md)
 
 ## 📌 Project Overview
 
@@ -173,9 +173,10 @@ Instead of simple accuracy, this project prioritizes **F1-Score** and **Precisio
 
 * **Language:** Python
 * **ML Libraries:** Scikit-Learn, Pandas, NumPy
-* **MLOps:** MLflow
-* **Backend:** FastAPI, Uvicorn, Pydantic
-* **DevOps:** Docker, GitHub Actions (CI)
+* **MLOps:** MLflow (experiment tracking + model registry)
+* **Backend:** FastAPI, Uvicorn, Pydantic, pydantic-settings
+* **DevOps:** Docker (multi-stage, non-root), Docker Compose, GitHub Actions (CI: ruff, mypy, pytest+coverage, pip-audit, docker build)
+* **Quality/Security tooling:** ruff, mypy, pytest-cov, pip-audit, gitleaks (pre-commit)
 
 ---
 
@@ -206,3 +207,32 @@ Setting up **GitHub Actions** or **Airflow** to trigger a "Continuous Training" 
 ### 5. Edge Deployment
 
 Optimizing the model using **ONNX** or **TensorRT** to deploy the inference engine directly onto "Edge" devices (like an NVIDIA Jetson or Raspberry Pi) located physically on the air compressor, reducing the need for constant cloud connectivity.
+
+---
+
+## 🔒 Deferred / Non-Goals
+
+This project went through a hardening pass (env-based config, API-key auth,
+CORS, input validation, an MLflow model-registry promotion gate, a
+non-root multi-stage Docker image + compose stack, and an expanded CI
+pipeline with coverage/type/vulnerability gates) that deliberately stayed
+scoped to hardening what already existed. Explicitly out of scope for that
+pass, each for a specific reason rather than an oversight:
+
+* **Kafka/streaming, Grafana/Prometheus, RUL/LSTM modeling, edge
+  deployment** — larger feature work, tracked above under "Future
+  Improvements."
+* **Cloud-specific IaC / managed services** — the deployment target is
+  deliberately cloud-agnostic (Docker + docker-compose only); pick your own
+  infra on top of the image.
+* **OAuth2/JWT** — a static API key (`ACPDM_API_KEY`) is the intentional
+  minimal auth model for a single-service-to-service endpoint; revisit if
+  multiple external clients need distinct identities/scopes.
+* **DVC / git-lfs** — the raw dataset is ~239KB and committed directly;
+  fine short-term, worth revisiting if the dataset grows substantially.
+* **A Makefile/task runner** — low-priority DX polish, not blocking
+  anything.
+* **Upgrading MLflow past 3.13** — see the comment on `mlflow`'s pin in
+  `pyproject.toml`: newer versions disable the file-based tracking backend
+  this project's local dev setup relies on by default, which needs a
+  deliberate migration to a database backend, not a version bump.
