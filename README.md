@@ -77,7 +77,30 @@ mlflow ui  # View results at http://localhost:5000
 
 ```
 
-### 4. Running the API
+Training **registers** a new candidate model version per target in the MLflow
+Model Registry, but that version is not automatically served — see step 4.
+
+### 4. Promoting a Trained Model
+
+`src/predict.py` only ever loads the model version holding the `production`
+alias (configurable via `ACPDM_MODEL_REGISTRY_ALIAS`) for each target, so a
+freshly trained run has zero effect on what the API serves until you
+explicitly promote it:
+
+```bash
+python -m src.promote list bearings        # see candidate versions + their holdout_f1
+python -m src.promote promote bearings 1   # attach the 'production' alias to version 1
+python -m src.promote current bearings     # confirm what's currently promoted
+```
+
+Promotion refuses a version whose `holdout_f1` is below
+`ACPDM_MIN_HOLDOUT_F1_FOR_PROMOTION` (default `0.0`, i.e. no gate) unless you
+pass `--force`. Re-running `promote` with an older version number is an
+instant rollback. Repeat for every target (`bearings`, `wpump`, `radiator`,
+`exvalve`) — the API reports `"degraded"` at `/health/ready` for any target
+that hasn't been promoted yet.
+
+### 5. Running the API
 
 ```bash
 uvicorn api.main:app --reload
@@ -85,8 +108,10 @@ uvicorn api.main:app --reload
 ```
 
 Navigate to `http://localhost:8000/docs` to test the interactive Swagger API.
+`/predict` requires an `X-API-Key` header matching `ACPDM_API_KEY` (see
+`.env.example`); `/health` and `/health/ready` are unauthenticated.
 
-### 5. Running via Docker
+### 6. Running via Docker
 
 The container serves the API only; it loads trained models from an MLflow
 tracking store at startup, so mount the local `mlruns/` directory produced
@@ -98,7 +123,7 @@ docker run -p 8000:8000 -v "$(pwd)/mlruns:/app/mlruns" air-compressor-api
 
 ```
 
-### 6. Testing & Code Quality
+### 7. Testing & Code Quality
 
 ```bash
 uv run pytest              # unit + integration tests

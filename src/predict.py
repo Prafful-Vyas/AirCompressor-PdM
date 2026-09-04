@@ -3,6 +3,7 @@ import logging
 import mlflow
 import numpy as np
 import pandas as pd
+from mlflow.exceptions import MlflowException
 from mlflow.tracking import MlflowClient
 
 from .config import (
@@ -12,8 +13,10 @@ from .config import (
     SENSOR_COLS,
     TARGET_COLS,
     WINDOW_SIZES,
+    registered_model_name,
 )
 from .features import FeatureEngineer
+from .settings import get_settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,24 +30,14 @@ class Predictor:
         self.experiment_name = experiment_name
         self.models: dict = {}
 
-    def _latest_run_id(
-        self, client: MlflowClient, experiment_id: str, target: str
-    ) -> str:
-        runs = client.search_runs(
-            experiment_ids=[experiment_id],
-            filter_string=f"params.target = '{target}'",
-            order_by=["start_time DESC"],
-            max_results=1,
-        )
-        if not runs:
-            raise RuntimeError(
-                f"No MLflow run found for target '{target}' in experiment "
-                f"'{self.experiment_name}'. Run `python -m src.train` first."
-            )
-        return runs[0].info.run_id
-
     def load(self) -> None:
-        """Loads the most recent model for each target from MLflow."""
+        """Loads, for each target, the model version currently holding the
+        promotion alias (see src/settings.py's model_registry_alias,
+        default "production") in the MLflow Model Registry. A freshly
+        trained run is registered as a candidate but is never automatically
+        servable -- promoting it is a deliberate step via
+        `python -m src.promote promote <target> <version>` (src/promote.py).
+        """
         client = MlflowClient()
         experiment = client.get_experiment_by_name(self.experiment_name)
         if experiment is None:
@@ -53,11 +46,24 @@ class Predictor:
                 "Run `python -m src.train` first."
             )
 
+        alias = get_settings().model_registry_alias
         for target in TARGET_COLS:
-            run_id = self._latest_run_id(client, experiment.experiment_id, target)
-            model_uri = f"runs:/{run_id}/model"
+            name = registered_model_name(target)
+            try:
+                version = client.get_model_version_by_alias(name, alias)
+            except MlflowException as e:
+                raise RuntimeError(
+                    f"No model version has the '{alias}' alias for "
+                    f"registered model '{name}'. Run `python -m src.promote "
+                    f"promote {target} <version>` after training."
+                ) from e
+
+            model_uri = f"models:/{name}@{alias}"
             self.models[target] = mlflow.sklearn.load_model(model_uri)
-            logger.info(f"Loaded model for '{target}' from run {run_id}")
+            logger.info(
+                f"Loaded model for '{target}' from {model_uri} "
+                f"(registry version {version.version})"
+            )
 
     def predict(self, readings: pd.DataFrame) -> dict:
         """Scores the most recent row of a chronologically ordered window of

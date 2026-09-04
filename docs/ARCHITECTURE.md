@@ -294,5 +294,14 @@ hotter."
   columns, since those are the ones prone to sudden spikes/outliers when a fault
   develops.
 
+- Training a model does not make it servable. `src/train.py` registers each
+  trained pipeline as a new candidate version in the MLflow Model Registry;
+  `src/predict.py` only ever loads the version holding the `production`
+  alias for a target. Attaching that alias is a separate, explicit step —
+  `python -m src.promote promote <target> <version>` — so a bad retrain
+  can't silently become what the API serves. See the README's "Promoting a
+  Trained Model" section for the full workflow, and `src/promote.py` for
+  the CLI (`list` / `promote` / `current`).
+
 See [CONCEPTS.md](CONCEPTS.md) for how these parameters are turned into engineered
 features, models, and a served prediction.

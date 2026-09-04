@@ -67,3 +67,10 @@ NON_NEGATIVE_COLS = [
 WINDOW_SIZES = [5, 10]
 
 EXPERIMENT_NAME = "air-compressor-predictive-maintenance"
+
+
+def registered_model_name(target: str) -> str:
+    """Single naming source for the MLflow Model Registry entry a target's
+    runs are registered under. Used by train.py (registers), predict.py
+    (loads via the promotion alias), and promote.py (the promotion CLI)."""
+    return f"{EXPERIMENT_NAME}-{target}"

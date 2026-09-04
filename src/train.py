@@ -9,7 +9,14 @@ from sklearn.metrics import classification_report, f1_score
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 
-from .config import DROP_COLS, EXPERIMENT_NAME, SENSOR_COLS, TARGET_COLS, WINDOW_SIZES
+from .config import (
+    DROP_COLS,
+    EXPERIMENT_NAME,
+    SENSOR_COLS,
+    TARGET_COLS,
+    WINDOW_SIZES,
+    registered_model_name,
+)
 from .features import FeatureEngineer
 from .ingestion import DataIngestor
 from .preprocessing import build_preprocessing_pipeline
@@ -94,7 +101,14 @@ class Trainer:
             holdout_f1 = f1_score(y_test, preds, average="weighted", zero_division=0)
 
             mlflow.log_metric("holdout_f1", holdout_f1)
-            mlflow_sklearn.log_model(final_pipeline, "model")
+            # Registers a new candidate version in the Model Registry, but
+            # attaches no alias -- it has zero effect on what Predictor
+            # serves until a human promotes it (see src/promote.py).
+            mlflow_sklearn.log_model(
+                final_pipeline,
+                name="model",
+                registered_model_name=registered_model_name(target_col),
+            )
 
             report = classification_report(y_test, preds, zero_division=0)
             logger.info(f"[{target_col}] Holdout F1 Score: {holdout_f1:.4f}")

@@ -1,8 +1,11 @@
+import mlflow
 import numpy as np
 import pandas as pd
 import pytest
+from mlflow.tracking import MlflowClient
+from sklearn.linear_model import LogisticRegression
 
-from src.config import RAW_FEATURE_COLS
+from src.config import RAW_FEATURE_COLS, TARGET_COLS, registered_model_name
 from src.predict import Predictor
 
 
@@ -83,4 +86,50 @@ def test_predict_works_with_a_single_reading():
 def test_load_raises_when_experiment_missing(isolated_mlflow_tracking):
     predictor = Predictor(experiment_name="nonexistent-experiment")
     with pytest.raises(RuntimeError, match="not found"):
+        predictor.load()
+
+
+def _register_and_promote_all_targets() -> None:
+    mlflow.set_experiment("test-experiment")
+    client = MlflowClient()
+    for target in TARGET_COLS:
+        with mlflow.start_run():
+            model = LogisticRegression().fit(
+                np.array([[1], [2], [3], [4]]), [0, 1, 0, 1]
+            )
+            mlflow.sklearn.log_model(
+                model,
+                name="model",
+                registered_model_name=registered_model_name(target),
+            )
+        versions = client.search_model_versions(
+            f"name='{registered_model_name(target)}'"
+        )
+        version = max(versions, key=lambda v: int(v.version)).version
+        client.set_registered_model_alias(
+            registered_model_name(target), "production", version
+        )
+
+
+def test_load_succeeds_once_every_target_is_promoted(isolated_mlflow_tracking):
+    _register_and_promote_all_targets()
+
+    predictor = Predictor(experiment_name="test-experiment")
+    predictor.load()
+
+    assert set(predictor.models.keys()) == set(TARGET_COLS)
+
+
+def test_load_raises_when_registered_but_not_promoted(isolated_mlflow_tracking):
+    mlflow.set_experiment("test-experiment")
+    with mlflow.start_run():
+        model = LogisticRegression().fit(np.array([[1], [2], [3], [4]]), [0, 1, 0, 1])
+        mlflow.sklearn.log_model(
+            model,
+            name="model",
+            registered_model_name=registered_model_name("bearings"),
+        )
+
+    predictor = Predictor(experiment_name="test-experiment")
+    with pytest.raises(RuntimeError, match="No model version has the"):
         predictor.load()
