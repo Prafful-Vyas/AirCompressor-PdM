@@ -13,6 +13,7 @@ mlruns/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
+.coverage
 
 # model artifacts
 *.pkl

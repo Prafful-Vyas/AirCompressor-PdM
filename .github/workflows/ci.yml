@@ -26,5 +26,41 @@ jobs:
       - name: Check formatting
         run: uv run ruff format --check .
 
+      - name: Type check
+        run: uv run mypy src api
+
+      # Coverage gate (--cov-fail-under) is enforced via pyproject.toml's
+      # [tool.pytest.ini_options] addopts, not a separate flag here.
       - name: Test
         run: uv run pytest
+
+      - name: Export dependencies for vulnerability scan
+        run: uv export --no-hashes --format requirements-txt -o requirements-audit.txt
+
+      # Advisories below are deliberately deferred, all tracked back to one
+      # root cause: mlflow is capped at <3.13 because 3.14+ hard-disables
+      # the file-based tracking backend this project's local dev setup and
+      # test fixtures rely on (see the comment on mlflow's pin in
+      # pyproject.toml). That cap transitively blocks patching starlette
+      # (mlflow-skinny pins starlette<1) and cryptography (mlflow pins <47).
+      # Migrating the tracking backend is real future work, not scope creep
+      # to silence here -- when it happens, drop this entire ignore list.
+      - name: Dependency vulnerability scan
+        run: |
+          uvx pip-audit -r requirements-audit.txt --strict \
+            --ignore-vuln PYSEC-2026-3554 \
+            --ignore-vuln PYSEC-2026-3552 \
+            --ignore-vuln PYSEC-2026-3553 \
+            --ignore-vuln GHSA-537c-gmf6-5ccf \
+            --ignore-vuln PYSEC-2026-3687 \
+            --ignore-vuln PYSEC-2026-3686 \
+            --ignore-vuln GHSA-gqvg-gmmx-x4hm \
+            --ignore-vuln PYSEC-2026-161 \
+            --ignore-vuln PYSEC-2026-248 \
+            --ignore-vuln PYSEC-2026-249 \
+            --ignore-vuln PYSEC-2026-2281 \
+            --ignore-vuln PYSEC-2026-2280
+
+      # Build-only smoke test -- no push/registry, no cloud assumed.
+      - name: Docker build
+        run: docker build -t acpdm:ci .

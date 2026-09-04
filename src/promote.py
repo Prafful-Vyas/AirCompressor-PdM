@@ -47,6 +47,7 @@ def list_versions(target: str) -> None:
 
     current = _current_alias_version(client, name, alias)
     for v in versions:
+        assert v.run_id is not None, f"Registered version {v.version} has no run_id"
         run = client.get_run(v.run_id)
         holdout_f1 = run.data.metrics.get("holdout_f1")
         mean_cv_f1 = run.data.metrics.get("mean_cv_f1")
@@ -66,6 +67,7 @@ def promote(
     threshold = get_settings().min_holdout_f1_for_promotion
 
     mv = client.get_model_version(name, version)
+    assert mv.run_id is not None, f"Registered version {version} has no run_id"
     run = client.get_run(mv.run_id)
     holdout_f1 = run.data.metrics.get("holdout_f1")
 
