@@ -1,11 +1,13 @@
 import logging
 
 import mlflow
+import numpy as np
 import pandas as pd
 from mlflow.tracking import MlflowClient
 
 from .config import (
     EXPERIMENT_NAME,
+    NON_NEGATIVE_COLS,
     RAW_FEATURE_COLS,
     SENSOR_COLS,
     TARGET_COLS,
@@ -69,6 +71,20 @@ class Predictor:
         if missing:
             raise ValueError(f"Missing required sensor columns: {missing}")
 
+        raw = readings[RAW_FEATURE_COLS]
+
+        non_finite = [c for c in RAW_FEATURE_COLS if not np.isfinite(raw[c]).all()]
+        if non_finite:
+            raise ValueError(
+                f"Non-finite (NaN/Infinity) values in columns: {non_finite}"
+            )
+
+        negative = [c for c in NON_NEGATIVE_COLS if (raw[c] < 0).any()]
+        if negative:
+            raise ValueError(
+                f"Negative values in columns that must be non-negative: {negative}"
+            )
+
         if len(readings) < max(WINDOW_SIZES):
             logger.warning(
                 f"Only {len(readings)} reading(s) provided; rolling features "
@@ -76,7 +92,7 @@ class Predictor:
                 "history than the model was trained with."
             )
 
-        df = readings[RAW_FEATURE_COLS].reset_index(drop=True)
+        df = raw.reset_index(drop=True)
         fe = FeatureEngineer(window_sizes=WINDOW_SIZES)
         engineered = fe.create_rolling_features(df, SENSOR_COLS)
         latest = engineered.iloc[[-1]]

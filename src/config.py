@@ -47,6 +47,23 @@ RAW_FEATURE_COLS = [
 TARGET_COLS = ["bearings", "wpump", "radiator", "exvalve"]  # Binary targets
 DROP_COLS = ["id", "acmotor"] + TARGET_COLS
 
+# Columns that are physically impossible to be negative (speeds, power
+# draws, flow rates, noise level). Deliberately excludes temperatures
+# (can legitimately read near/below zero at startup or in cold climates),
+# torque, and the accelerometer axes (gaccx/y/z, haccx/y/z are signed
+# vibration readings that oscillate around zero).
+NON_NEGATIVE_COLS = [
+    "rpm",
+    "motor_power",
+    "air_flow",
+    "noise_db",
+    "outlet_pressure_bar",
+    "wpump_outlet_press",
+    "wpump_power",
+    "water_flow",
+    "oilpump_power",
+]
+
 WINDOW_SIZES = [5, 10]
 
 EXPERIMENT_NAME = "air-compressor-predictive-maintenance"

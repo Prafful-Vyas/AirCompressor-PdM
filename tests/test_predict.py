@@ -44,6 +44,26 @@ def test_predict_raises_on_missing_columns():
         predictor.predict(incomplete)
 
 
+def test_predict_raises_on_nan_reading():
+    predictor = Predictor()
+    predictor.models = {"bearings": FakeModel()}
+
+    readings = make_readings(15)
+    readings.loc[readings.index[-1], "rpm"] = np.nan
+    with pytest.raises(ValueError, match="Non-finite"):
+        predictor.predict(readings)
+
+
+def test_predict_raises_on_negative_rpm():
+    predictor = Predictor()
+    predictor.models = {"bearings": FakeModel()}
+
+    readings = make_readings(15)
+    readings.loc[readings.index[-1], "rpm"] = -1.0
+    with pytest.raises(ValueError, match="Negative values"):
+        predictor.predict(readings)
+
+
 def test_predict_raises_if_models_not_loaded():
     predictor = Predictor()
     with pytest.raises(RuntimeError, match="not loaded"):
