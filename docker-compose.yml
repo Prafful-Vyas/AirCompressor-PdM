@@ -1,0 +1,59 @@
+# Local, prod-like verification stack: the API plus a real MLflow tracking
+# server (not the file-based default). This is NOT a cloud deployment
+# manifest -- deployment target for this project is deliberately
+# cloud-agnostic; adapt for your own infra as needed.
+#
+# Usage:
+#   cp .env.example .env   # then set ACPDM_API_KEY to something real
+#   docker compose up --build -d
+#   docker compose exec api uv run python -m src.train
+#   docker compose exec api uv run python -m src.promote promote bearings 1
+#   curl localhost:8000/health/ready
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    command:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - sqlite:///mlflow-data/mlflow.db
+      - --default-artifact-root
+      - /mlflow-data/mlruns
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow-data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request as u; u.urlopen('http://localhost:5000/health')",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build: .
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      ACPDM_MLFLOW_TRACKING_URI: http://mlflow:5000
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  mlflow-data:

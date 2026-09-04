@@ -113,13 +113,29 @@ Navigate to `http://localhost:8000/docs` to test the interactive Swagger API.
 
 ### 6. Running via Docker
 
-The container serves the API only; it loads trained models from an MLflow
-tracking store at startup, so mount the local `mlruns/` directory produced
-by step 3 (or point `MLFLOW_TRACKING_URI` at a remote tracking server):
+The image runs as a non-root user and serves the API only; it loads
+promoted models from an MLflow tracking store at startup, so mount the
+local `mlruns/` directory produced by step 3 (or point
+`ACPDM_MLFLOW_TRACKING_URI` at a remote tracking server):
 
 ```bash
 docker build -t air-compressor-api .
-docker run -p 8000:8000 -v "$(pwd)/mlruns:/app/mlruns" air-compressor-api
+docker run -p 8000:8000 \
+  -e ACPDM_API_KEY=change-me-in-production \
+  -v "$(pwd)/mlruns:/app/mlruns" \
+  air-compressor-api
+
+```
+
+For a prod-like local stack with a real MLflow tracking server instead of
+the file-based default, use `docker-compose.yml`:
+
+```bash
+cp .env.example .env   # then set ACPDM_API_KEY to something real
+docker compose up --build -d
+docker compose exec api uv run python -m src.train
+docker compose exec api uv run python -m src.promote promote bearings 1
+curl localhost:8000/health/ready
 
 ```
 
