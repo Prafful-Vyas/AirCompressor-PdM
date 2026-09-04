@@ -42,8 +42,8 @@ class DataIngestor:
 
 
 if __name__ == "__main__":
-    DATA_PATH = os.path.join("data", "raw", "aircompressor.csv")
+    from src.settings import get_settings
 
-    ingestor = DataIngestor(DATA_PATH)
+    ingestor = DataIngestor(get_settings().data_raw_path)
     data = ingestor.load_data()
     ingestor.get_data_summary()

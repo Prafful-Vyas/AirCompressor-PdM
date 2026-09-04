@@ -9,3 +9,4 @@ docs/
 mlruns/
 *.db
 .ipynb_checkpoints/
+.env

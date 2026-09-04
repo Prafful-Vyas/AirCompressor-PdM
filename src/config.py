@@ -1,6 +1,9 @@
 """Shared constants for training and serving. Both paths must agree on
 column names/order and MLflow experiment naming, so they're defined once
-here rather than duplicated in train.py and predict.py."""
+here rather than duplicated in train.py and predict.py.
+
+Runtime/infra config that varies between environments (API keys, CORS,
+tracking URIs, ports) lives in src/settings.py, not here."""
 
 # Sensor columns that get rolling mean/std features engineered from them.
 SENSOR_COLS = [

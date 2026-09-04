@@ -1,5 +1,9 @@
 # virtual environment
+.venv/
 pred_main_envmlflow.db
+
+# environment secrets (see .env.example for the template)
+.env
 
 # MLflow data
 mlflow.db
